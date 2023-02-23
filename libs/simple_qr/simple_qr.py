@@ -1,6 +1,7 @@
 import cv2
-import numpy as np
 from pyzbar.pyzbar import decode
 
 def find_qr(img):
-    return None
+    qr_obj = decode(cv2.cvtColor(img, 0))
+    (l, t, w, h) = qr_obj[0].rect
+    cv2.rectangle(img, (l, t), (l+w, t+h))
