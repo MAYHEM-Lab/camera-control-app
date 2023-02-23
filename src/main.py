@@ -70,7 +70,7 @@ class SimpleQR(App):
         client = OakCameraClient(config)
 
         # Placeholder task
-        self.async_tasks.append(asyncio.ensure_future(self.template_function()))
+        self.async_tasks.append(asyncio.ensure_future(self.stream_qr_camera(client)))
 
         return await asyncio.gather(run_wrapper(), *self.async_tasks)
 
@@ -115,7 +115,9 @@ class SimpleQR(App):
                 img = self.image_decoder.decode(
                     getattr(frame, "rgb").image_data
                 )
+
                 simple_qr.find_qr(img)
+
                 texture = Texture.create(
                     size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
                 )
@@ -142,7 +144,7 @@ class SimpleQR(App):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="amiga-camera-app")
+    parser = argparse.ArgumentParser(prog="SimpleQR")
     parser.add_argument("--port", type=int, required=True, help="The camera port.")
     parser.add_argument(
         "--address", type=str, default="localhost", help="The camera address"
@@ -155,7 +157,7 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(
-            CameraApp(args.address, args.port, args.stream_every_n).app_func()
+            SimpleQR(args.address, args.port, args.stream_every_n).app_func()
         )
     except asyncio.CancelledError:
         pass
