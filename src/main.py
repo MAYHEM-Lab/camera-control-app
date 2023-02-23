@@ -4,7 +4,7 @@ import asyncio
 import os
 from typing import List
 
-from camera_control.simple_qr import find_qr    
+from camera_control.simple_qr import find_qr
 
 import grpc
 from farm_ng.oak import oak_pb2
@@ -13,7 +13,7 @@ from farm_ng.service import service_pb2
 from farm_ng.service.service_client import ClientConfig
 from turbojpeg import TurboJPEG
 from PIL import Image 
-import PIL
+import cv2
 
 # import internal libs
 
@@ -114,10 +114,12 @@ class CameraControlApp(App):
 
             try:
                 # Decode the image and render it in the correct kivy texture
-                accel_x = getattr(frame, "imu_packets").packets.accelero_packet.accelero.x
+                tmp = getattr(frame, "imu_packets").imu_packets
+                tmp = getattr(tmp, "packets").accelero_packet
+                accel_x = getattr(tmp, "accelero").x
                 # self.counter += 1
                 self.root.ids["accelaration_x"].text = (
-                f"Accel X: {self.accel_x}"
+                f"Accel X: {accel_x}"
                 )
             except Exception as e:
                 print(e)
