@@ -4,7 +4,7 @@ import asyncio
 import os
 from typing import List
 
-from camera_control import simple_qr
+from camera_control.simple_qr import find_qr    
 
 import grpc
 from farm_ng.oak import oak_pb2
