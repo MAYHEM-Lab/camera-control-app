@@ -5,6 +5,14 @@ import os
 from typing import List
 
 from simple_qr import ops
+from simple_qr import simple_qr
+
+import grpc
+from farm_ng.oak import oak_pb2
+from farm_ng.oak.camera_client import OakCameraClient
+from farm_ng.service import service_pb2
+from farm_ng.service.service_client import ClientConfig
+from turbojpeg import TurboJPEG
 
 # import internal libs
 
@@ -24,15 +32,20 @@ Config.set("kivy", "keyboard_mode", "systemanddock")
 # kivy imports
 from kivy.app import App  # noqa: E402
 from kivy.lang.builder import Builder  # noqa: E402
+from kivy.graphics.texture import Texture  # noqa: E402
 
 
 class SimpleQR(App):
     """Base class for the main Kivy app."""
 
-    def __init__(self) -> None:
+    def __init__(self, address: str, port: int, stream_every_n: int) -> None:
         super().__init__()
 
-        self.counter: int = 0
+        self.address = address
+        self.port = port
+        self.stream_every_n = stream_every_n
+
+        self.image_decoder = TurboJPEG()
 
         self.async_tasks: List[asyncio.Task] = []
 
@@ -51,18 +64,75 @@ class SimpleQR(App):
             for task in self.async_tasks:
                 task.cancel()
 
+
+        #config camera client
+        config = ClientConfig(address=self.address, port=self.port)
+        client = OakCameraClient(config)
+
         # Placeholder task
         self.async_tasks.append(asyncio.ensure_future(self.template_function()))
 
         return await asyncio.gather(run_wrapper(), *self.async_tasks)
 
-    async def template_function(self) -> None:
-        """Placeholder forever loop."""
+    async def stream_qr_camera(self, client: OakCameraClient) -> None:
         while self.root is None:
             await asyncio.sleep(0.01)
 
+        response_stream = None
+
         while True:
-            await asyncio.sleep(1.0)
+            state = await client.get_state()
+
+            if state.value not in [
+                service_pb2.ServiceState.IDLE,
+                service_pb2.ServiceState.RUNNING,
+            ]:
+                # Cancel existing stream, if it exists
+                if response_stream is not None:
+                    response_stream.cancel()
+                    response_stream = None
+                print("Camera service is not streaming or ready to stream")
+                await asyncio.sleep(0.1)
+                continue
+
+            if response_stream is None:
+                response_stream = client.stream_frames(every_n=self.stream_every_n)
+
+            try:
+                # try/except so app doesn't crash on killed service
+                response: oak_pb2.StreamFramesReply = await response_stream.read()
+                assert response and response != grpc.aio.EOF, "End of stream"
+            except Exception as e:
+                print(e)
+                response_stream.cancel()
+                response_stream = None
+                continue
+
+            # get the sync frame
+            frame: oak_pb2.OakSyncFrame = response.frame
+
+            try:
+                img = self.image_decoder.decode(
+                    getattr(frame, "rgb").image_data
+                )
+                simple_qr.find_qr(img)
+                texture = Texture.create(
+                    size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
+                )
+                texture.flip_vertical()
+                texture.blit_buffer(
+                    img.tobytes(),
+                    colorfmt="bgr",
+                    bufferfmt="ubyte",
+                    mipmap_generation=False,
+                )
+                self.root.ids["rgb"].texture = texture
+
+            except Exception as e:
+                print(e)
+                
+            # get image and show
+
 
             # increment the counter using internal libs and update the gui
             self.counter = ops.add(self.counter, 1)
@@ -72,15 +142,21 @@ class SimpleQR(App):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="simple-qr")
-
-    # Add additional command line arguments here
-
+    parser = argparse.ArgumentParser(prog="amiga-camera-app")
+    parser.add_argument("--port", type=int, required=True, help="The camera port.")
+    parser.add_argument(
+        "--address", type=str, default="localhost", help="The camera address"
+    )
+    parser.add_argument(
+        "--stream-every-n", type=int, default=1, help="Streaming frequency"
+    )
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(SimpleQR().app_func())
+        loop.run_until_complete(
+            CameraApp(args.address, args.port, args.stream_every_n).app_func()
+        )
     except asyncio.CancelledError:
         pass
     loop.close()
