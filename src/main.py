@@ -4,11 +4,7 @@ import asyncio
 import os
 from typing import List
 
-<<<<<<< HEAD
 from camera_control.simple_qr import find_qr    
-=======
-from camera_control.simple_qr import find_qr
->>>>>>> 1559693f3ba81b309efec7f228bffc9c688c491a
 
 import grpc
 from farm_ng.oak import oak_pb2
@@ -131,14 +127,31 @@ class CameraControlApp(App):
             for view_name in ["rgb", "disparity", "left", "right"]:
                 # Skip if view_name was not included in frame
                 try:
+
+                    # find qr
+                    if(view_name == "rgb"):
+                        qr_img = cv2.imdecode(getattr(frame, view_name).image_data)
+                        find_qr(qr_img)
+                        
+                        qr_texture = Texture.create(
+                        size=(qr_img.shape[1], qr_img.shape[0]), icolorfmt="bgr"
+                        )
+                    
+                        qr_texture.flip_vertical()
+                        qr_texture.blit_buffer(
+                            img.tobytes(),
+                            colorfmt="bgr",
+                            bufferfmt="ubyte",
+                            mipmap_generation=False,
+                        )
+
+                        self.root.ids["qr"].texture = qr_texture
+                    
                     # Decode the image and render it in the correct kivy texture
                     img = self.image_decoder.decode(
                         getattr(frame, view_name).image_data
                     )
-                    # find qr
-                    if(view_name == "rgb"):
-                        simple_qr.find_qr(img)
-
+                    
                     # IMG 
                     texture = Texture.create(
                         size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
