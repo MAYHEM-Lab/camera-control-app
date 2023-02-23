@@ -10,6 +10,8 @@ from farm_ng.oak.camera_client import OakCameraClient
 from farm_ng.service import service_pb2
 from farm_ng.service.service_client import ClientConfig
 from turbojpeg import TurboJPEG
+from PIL import Image 
+import PIL
 
 # import internal libs
 
@@ -29,18 +31,18 @@ Config.set("kivy", "keyboard_mode", "systemanddock")
 # kivy imports
 from kivy.app import App  # noqa: E402
 from kivy.lang.builder import Builder  # noqa: E402
-
+from kivy.graphics.texture import Texture  # noqa: E402
 
 class CameraControlApp(App):
     """Base class for the main Kivy app."""
 
-    def __init__(self) -> None:
+    def __init__(self, address: str, port: int, stream_every_n: int) -> None:
         super().__init__()
         # This is were we decalre variables and instantions of stuff
         self.address = address
         self.port = port
         self.stream_every_n = stream_every_n
-
+        # self.counter = 0
         self.image_decoder = TurboJPEG()
         self.tasks: List[asyncio.Task] = []
 
@@ -52,11 +54,11 @@ class CameraControlApp(App):
         App.get_running_app().stop()
 
     async def app_func(self):
-        async def run_wrapper() -> None:
+        async def run_wrapper():
             # we don't actually need to set asyncio as the lib because it is
             # the default, but it doesn't hurt to be explicit
             await self.async_run(async_lib="asyncio")
-            for task in self.async_tasks:
+            for task in self.tasks:
                 task.cancel()
 
         # configure the camera client
@@ -66,13 +68,14 @@ class CameraControlApp(App):
        # Stream camera frames
         self.tasks.append(asyncio.ensure_future(self.template_function(client)))
 
-        return await asyncio.gather(run_wrapper(), *self.async_tasks)
+        return await asyncio.gather(run_wrapper(), *self.tasks)
 
-    async def template_function(self) -> None:
+    async def template_function(self, client: OakCameraClient) -> None:
         """Placeholder forever loop."""
         while self.root is None:
             await asyncio.sleep(0.01)
 
+        response_stream = None
         while True:
              # check the state of the service
             state = await client.get_state()
@@ -106,6 +109,18 @@ class CameraControlApp(App):
             # get the sync frame
             frame: oak_pb2.OakSyncFrame = response.frame
 
+
+            try:
+                # Decode the image and render it in the correct kivy texture
+                accel_x = getattr(frame, "imu_packets").packets.accelero_packet.accelero.x
+                # self.counter += 1
+                self.root.ids[accelaration_x].text = (
+                f"Accel X: {self.accel_x}"
+                )
+            except Exception as e:
+                print(e)
+
+
             # get image and show
             for view_name in ["rgb", "disparity", "left", "right"]:
                 # Skip if view_name was not included in frame
@@ -118,6 +133,7 @@ class CameraControlApp(App):
                     texture = Texture.create(
                         size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
                     )
+                   
                     texture.flip_vertical()
                     texture.blit_buffer(
                         img.tobytes(),
@@ -125,6 +141,8 @@ class CameraControlApp(App):
                         bufferfmt="ubyte",
                         mipmap_generation=False,
                     )
+                    
+                    
                     self.root.ids[view_name].texture = texture
 
                 except Exception as e:
@@ -148,7 +166,7 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(CameraControlApp().app_func())
+        loop.run_until_complete(CameraControlApp(args.address, args.port, args.stream_every_n).app_func())
     except asyncio.CancelledError:
         pass
     loop.close()
