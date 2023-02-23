@@ -136,12 +136,6 @@ class SimpleQR(App):
             # get image and show
 
 
-            # increment the counter using internal libs and update the gui
-            self.counter = ops.add(self.counter, 1)
-            self.root.ids.counter_label.text = (
-                f"{'Tic' if self.counter % 2 == 0 else 'Tac'}: {self.counter}"
-            )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="SimpleQR")
