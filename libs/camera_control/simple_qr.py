@@ -1,5 +1,4 @@
 import cv2
-from pyzbar.pyzbar import decode
 
 def find_qr(img):
     detector = cv2.QRCodeDetector()
