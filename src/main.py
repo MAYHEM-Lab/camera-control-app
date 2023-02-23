@@ -4,7 +4,7 @@ import asyncio
 import os
 from typing import List
 
-from camera_control import simple_qr
+from camera_control.simple_qr import find_qr
 
 import grpc
 from farm_ng.oak import oak_pb2
@@ -131,7 +131,7 @@ class CameraControlApp(App):
                     # find qr
                     if(view_name == "rgb"):
                         qr_img = cv2.imdecode(getattr(frame, view_name).image_data)
-                        simple_qr.find_qr(qr_img)
+                        find_qr(qr_img)
                         
                         qr_texture = Texture.create(
                         size=(qr_img.shape[1], qr_img.shape[0]), icolorfmt="bgr"
