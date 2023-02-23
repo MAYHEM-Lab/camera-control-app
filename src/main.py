@@ -4,7 +4,12 @@ import asyncio
 import os
 from typing import List
 
-from amiga_package import ops
+import grpc
+from farm_ng.oak import oak_pb2
+from farm_ng.oak.camera_client import OakCameraClient
+from farm_ng.service import service_pb2
+from farm_ng.service.service_client import ClientConfig
+from turbojpeg import TurboJPEG
 
 # import internal libs
 
@@ -31,10 +36,13 @@ class CameraControlApp(App):
 
     def __init__(self) -> None:
         super().__init__()
+        # This is were we decalre variables and instantions of stuff
+        self.address = address
+        self.port = port
+        self.stream_every_n = stream_every_n
 
-        self.counter: int = 0
-
-        self.async_tasks: List[asyncio.Task] = []
+        self.image_decoder = TurboJPEG()
+        self.tasks: List[asyncio.Task] = []
 
     def build(self):
         return Builder.load_file("res/main.kv")
@@ -51,8 +59,12 @@ class CameraControlApp(App):
             for task in self.async_tasks:
                 task.cancel()
 
-        # Placeholder task
-        self.async_tasks.append(asyncio.ensure_future(self.template_function()))
+        # configure the camera client
+        config = ClientConfig(address=self.address, port=self.port)
+        client = OakCameraClient(config)
+
+       # Stream camera frames
+        self.tasks.append(asyncio.ensure_future(self.template_function(client)))
 
         return await asyncio.gather(run_wrapper(), *self.async_tasks)
 
@@ -62,19 +74,75 @@ class CameraControlApp(App):
             await asyncio.sleep(0.01)
 
         while True:
-            await asyncio.sleep(1.0)
+             # check the state of the service
+            state = await client.get_state()
 
-            # increment the counter using internal libs and update the gui
-            self.counter = ops.add(self.counter, 1)
-            self.root.ids.counter_label.text = (
-                f"{'Tic' if self.counter % 2 == 0 else 'Tac'}: {self.counter}"
-            )
+            if state.value not in [
+                service_pb2.ServiceState.IDLE,
+                service_pb2.ServiceState.RUNNING,
+            ]:
+                # Cancel existing stream, if it exists
+                if response_stream is not None:
+                    response_stream.cancel()
+                    response_stream = None
+                print("Camera service is not streaming or ready to stream")
+                await asyncio.sleep(0.1)
+                continue
+
+            # Create the stream
+            if response_stream is None:
+                response_stream = client.stream_frames(every_n=self.stream_every_n)
+
+            try:
+                # try/except so app doesn't crash on killed service
+                response: oak_pb2.StreamFramesReply = await response_stream.read()
+                assert response and response != grpc.aio.EOF, "End of stream"
+            except Exception as e:
+                print(e)
+                response_stream.cancel()
+                response_stream = None
+                continue
+
+            # get the sync frame
+            frame: oak_pb2.OakSyncFrame = response.frame
+
+            # get image and show
+            for view_name in ["rgb", "disparity", "left", "right"]:
+                # Skip if view_name was not included in frame
+                try:
+                    # Decode the image and render it in the correct kivy texture
+                    img = self.image_decoder.decode(
+                        getattr(frame, view_name).image_data
+                    )
+                    # IMG 
+                    texture = Texture.create(
+                        size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
+                    )
+                    texture.flip_vertical()
+                    texture.blit_buffer(
+                        img.tobytes(),
+                        colorfmt="bgr",
+                        bufferfmt="ubyte",
+                        mipmap_generation=False,
+                    )
+                    self.root.ids[view_name].texture = texture
+
+                except Exception as e:
+                    print(e)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="camera-control-app")
 
     # Add additional command line arguments here
+
+    parser.add_argument("--port", type=int, required=True, help="The camera port.")
+    parser.add_argument(
+        "--address", type=str, default="localhost", help="The camera address"
+    )
+    parser.add_argument(
+        "--stream-every-n", type=int, default=1, help="Streaming frequency"
+    )
 
     args = parser.parse_args()
 
