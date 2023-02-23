@@ -4,7 +4,7 @@ import asyncio
 import os
 from typing import List
 
-from amiga_package import ops
+from simple_qr import ops
 
 # import internal libs
 
@@ -26,7 +26,7 @@ from kivy.app import App  # noqa: E402
 from kivy.lang.builder import Builder  # noqa: E402
 
 
-class TemplateApp(App):
+class SimpleQR(App):
     """Base class for the main Kivy app."""
 
     def __init__(self) -> None:
@@ -72,7 +72,7 @@ class TemplateApp(App):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="template-app")
+    parser = argparse.ArgumentParser(prog="simple-qr")
 
     # Add additional command line arguments here
 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(TemplateApp().app_func())
+        loop.run_until_complete(SimpleQR().app_func())
     except asyncio.CancelledError:
         pass
     loop.close()
