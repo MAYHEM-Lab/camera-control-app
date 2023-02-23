@@ -116,7 +116,7 @@ class CameraControlApp(App):
                 # Decode the image and render it in the correct kivy texture
                 accel_x = getattr(frame, "imu_packets").packets.accelero_packet.accelero.x
                 # self.counter += 1
-                self.root.ids[accelaration_x].text = (
+                self.root.ids["accelaration_x"].text = (
                 f"Accel X: {self.accel_x}"
                 )
             except Exception as e:
@@ -127,14 +127,31 @@ class CameraControlApp(App):
             for view_name in ["rgb", "disparity", "left", "right"]:
                 # Skip if view_name was not included in frame
                 try:
+
+                    # find qr
+                    if(view_name == "rgb"):
+                        qr_img = cv2.imdecode(getattr(frame, view_name).image_data)
+                        simple_qr.find_qr(qr_img)
+                        
+                        qr_texture = Texture.create(
+                        size=(qr_img.shape[1], qr_img.shape[0]), icolorfmt="bgr"
+                        )
+                    
+                        qr_texture.flip_vertical()
+                        qr_texture.blit_buffer(
+                            img.tobytes(),
+                            colorfmt="bgr",
+                            bufferfmt="ubyte",
+                            mipmap_generation=False,
+                        )
+
+                        self.root.ids["qr"].texture = qr_texture
+                    
                     # Decode the image and render it in the correct kivy texture
                     img = self.image_decoder.decode(
                         getattr(frame, view_name).image_data
                     )
-                    # find qr
-                    if(view_name == "rgb"):
-                        simple_qr.find_qr(img)
-
+                    
                     # IMG 
                     texture = Texture.create(
                         size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
