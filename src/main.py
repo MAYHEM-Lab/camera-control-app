@@ -57,7 +57,7 @@ class SimpleQR(App):
         App.get_running_app().stop()
 
     async def app_func(self):
-        async def run_wrapper() -> None:
+        async def run_wrapper():
             # we don't actually need to set asyncio as the lib because it is
             # the default, but it doesn't hurt to be explicit
             await self.async_run(async_lib="asyncio")
@@ -116,7 +116,7 @@ class SimpleQR(App):
                     getattr(frame, "rgb").image_data
                 )
 
-                simple_qr.find_qr(img)
+                # simple_qr.find_qr(img)
 
                 texture = Texture.create(
                     size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
@@ -138,7 +138,7 @@ class SimpleQR(App):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="SimpleQR")
+    parser = argparse.ArgumentParser(prog="camera_control_app")
     parser.add_argument("--port", type=int, required=True, help="The camera port.")
     parser.add_argument(
         "--address", type=str, default="localhost", help="The camera address"
