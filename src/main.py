@@ -112,10 +112,12 @@ class CameraControlApp(App):
 
             try:
                 # Decode the image and render it in the correct kivy texture
-                accel_x = getattr(frame, "imu_packets").packets.accelero_packet.accelero.x
+                tmp = getattr(frame, "imu_packets").imu_packets
+                tmp = getattr(tmp, "packets").accelero_packet
+                accel_x = getattr(tmp, "accelero").x
                 # self.counter += 1
-                self.root.ids[accelaration_x].text = (
-                f"Accel X: {self.accel_x}"
+                self.root.ids["accelaration_x"].text = (
+                f"Accel X: {accel_x}"
                 )
             except Exception as e:
                 print(e)
