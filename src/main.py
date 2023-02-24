@@ -45,6 +45,7 @@ class CameraControlApp(App):
         # self.counter = 0
         self.image_decoder = TurboJPEG()
         self.tasks: List[asyncio.Task] = []
+        self.acceleration_data = {}
 
     def build(self):
         return Builder.load_file("res/main.kv")
@@ -112,15 +113,21 @@ class CameraControlApp(App):
 
             try:
                 # Decode the image and render it in the correct kivy texture
-                tmp = getattr(frame, "imu_packets").imu_packets
-                tmp = getattr(tmp, "packets").accelero_packet
-                accel_x = getattr(tmp, "accelero").x
-                # self.counter += 1
-                self.root.ids["accelaration_x"].text = (
-                f"Accel X: {accel_x}"
-                )
+                tmp = getattr(frame, "imu_packets").packets
+                tmp = getattr(tmp[0], "accelero_packet").accelero
+
+                self.acceleration_data["accelaration_x"] = getattr(tmp, "x")
+                self.acceleration_data["accelaration_y"] = getattr(tmp, "y")
+                self.acceleration_data["accelaration_z"] = getattr(tmp, "z")
+
+                for axis in ["accelaration_x", "accelaration_y" ,"accelaration_z"]:
+                    self.root.ids[axis].text = (
+                        axis + f": {self.acceleration_data[axis]}"
+                    )
+                
             except Exception as e:
                 print(e)
+                print("WHy")
 
 
             # get image and show

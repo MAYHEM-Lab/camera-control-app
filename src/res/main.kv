@@ -20,10 +20,29 @@ RelativeLayout:
                 id: right
         TabbedPanelItem:
             text: "Accel"
-            Label:
-                id: accelaration_x
-                text: "Accel X: 0"
-                font_size: 40
+            RelativeLayout:
+                TabbedPanel: 
+                    pos_hint: {"x": 0.0, "top": 1}
+                    do_default_tab: False
+                    TabbedPanelItem:
+                        text: "Accelation: X"
+                        Label:
+                            id: accelaration_x
+                            text: "Accel X: 0"
+                            font_size: 40
+                    TabbedPanelItem:
+                        text: "Accelation: Y"
+                        Label:
+                            id: accelaration_y
+                            text: "Accel Y: 0"
+                            font_size: 40
+                    TabbedPanelItem:
+                        text: "Accelation: Z"
+                        Label:
+                            id: accelaration_z
+                            text: "Accel Z: 0"
+                            font_size: 40
+                            
         TabbedPanelItem:
             text: "Sus"
             Image:
@@ -31,7 +50,7 @@ RelativeLayout:
                 source: "assets/among_us_player_blue.png"
     Button:
         id: back_btn_layout
-        pos_hint: {"x": 0.0, "top": 0.925}
+        pos_hint: {"x": 0.0, "top": 0.9}
         background_color: 0, 0, 0, 0
         size_hint: 0.1, 0.1
         background_normal: "assets/back_button.png"
