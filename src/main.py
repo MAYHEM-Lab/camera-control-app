@@ -132,7 +132,8 @@ class CameraControlApp(App):
 
                     # find qr
                     if(view_name == "rgb"):
-                        qr_img = cv2.imdecode(getattr(frame, view_name).image_data)
+                        qr_img = cv2.imdecode(getattr(frame, view_name).image_data) # Just use TurboJPEG is numpy array
+                        # Move this into this file
                         find_qr(qr_img)
                         
                         qr_texture = Texture.create(
