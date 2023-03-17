@@ -82,6 +82,8 @@ class CameraControlApp(App):
 
         return await asyncio.gather(run_wrapper(), *self.tasks)
 
+    async def classify(self):
+        return self.qr_model.detect(self.QR_img)
 
     async def detect_QR(self) -> None:
 
@@ -91,7 +93,7 @@ class CameraControlApp(App):
         # print("Help me")
         if(self.new_data and (self.QR_img is not None)):
 
-            decodedText, points = self.qr_model.detect(self.QR_img) # make these class memebr variables
+            decodedText, points =  await self.classify()# make these class memebr variables
 
             # print(points)
             # Make the points array an array of ints (.astype(int)) to draw lines
@@ -116,7 +118,7 @@ class CameraControlApp(App):
                     bufferfmt="ubyte",
                     mipmap_generation=False,
                 )
-
+                self.root.ids["qr"].text = str(decodedText)
                 self.root.ids["qr"].texture = qr_texture
             else:
                 print("QR code not detected")
