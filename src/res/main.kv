@@ -1,40 +1,7 @@
 RelativeLayout:
-    TabbedPanel:
-        pos_hint: {"x": 0.0, "top": 1.0}
-        do_default_tab: False
-        TabbedPanelItem:
-            text: "Rgb"
-            Image:
-                id: rgb
-        TabbedPanelItem:
-            text: "Disparity"
-            Image:
-                id: disparity
-        TabbedPanelItem:
-            text: "Left"
-            Image:
-                id: left
-        TabbedPanelItem:
-            text: "Right"
-            Image:
-                id: right
-        TabbedPanelItem:
-            text: "QR Detect"
-            BoxLayout:
-                Label:
-                    id: qr_text
-                    text: "xxx"
-                Image:
-                    id: qr
-                
-        TabbedPanelItem:
-            text: "Sus"
-            Image:
-                id: sus
-                source: "assets/among_us_player_blue.png"
     Button:
         id: back_btn_layout
-        pos_hint: {"x": 0.0, "top": 0.925}
+        pos_hint: {"x": 0.0, "top": 1.0}
         background_color: 0, 0, 0, 0
         size_hint: 0.1, 0.1
         background_normal: "assets/back_button.png"
@@ -43,3 +10,67 @@ RelativeLayout:
             source: "assets/back_button_normal.png" if self.parent.state == "normal" else "assets/back_button_down.png"
             pos: self.parent.pos
             size: self.parent.size
+    BoxLayout:
+        orientation: 'horizontal'
+        BoxLayout:
+            size_hint_x: 0.3
+            orientation: 'vertical'
+            Widget:
+                size_hint_y: 2.0
+            Label:
+                text: "Amiga State:"
+                font_size: 18
+                size_hint_y: 0.5
+            Label:
+                text: app.amiga_state
+                font_size: 18
+            Widget: # Empty placeholder
+            Label:
+                text: "Speed [m/s]:"
+                font_size: 18
+                size_hint_y: 0.5
+            Label:
+                text: app.amiga_speed
+                font_size: 18
+            Widget: # Empty placeholder
+            Label:
+                text: "Angular Rate [rad/s]:"
+                font_size: 18
+                size_hint_y: 0.5
+            Label:
+                text: app.amiga_rate
+                font_size: 18
+            Widget:
+                size_hint_y: 2.0
+        TabbedPanel:
+            do_default_tab: False
+            TabbedPanelItem:
+                text: "Rgb"
+                Image:
+                    id: rgb
+            TabbedPanelItem:
+                text: "Disparity"
+                Image:
+                    id: disparity
+            TabbedPanelItem:
+                text: "Left"
+                Image:
+                    id: left
+            TabbedPanelItem:
+                text: "Right"
+                Image:
+                    id: right
+            TabbedPanelItem:
+                text: "QR Detect"
+                BoxLayout:
+                    Label:
+                        id: qr_text
+                        text: "xxx"
+                    Image:
+                        id: qr    
+            TabbedPanelItem:
+                text: "Sus"
+                Image:
+                    id: sus
+                    source: "assets/among_us_player_blue.png"
+    
