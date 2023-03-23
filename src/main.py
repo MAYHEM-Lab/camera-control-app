@@ -110,7 +110,7 @@ class QR_Control(App):
         )
 
         # QR Detection Task
-        self.tasks.append(asyncio.ensure_future(self.detect_QR()))
+        # self.tasks.append(asyncio.ensure_future(self.detect_QR()))
 
         return await asyncio.gather(run_wrapper(), *self.tasks)
 
@@ -125,7 +125,7 @@ class QR_Control(App):
         # print("Help me")
         if(self.new_data and (self.QR_img is not None)):
 
-            decodedText, points, qr =  await self.classify()# make these class memebr variables
+            decodedText, points, qr =  await self.classify() 
 
             # print(points)
             # Make the points array an array of ints (.astype(int)) to draw lines
@@ -265,7 +265,7 @@ class QR_Control(App):
                     img = self.image_decoder.decode(
                         getattr(frame, view_name).image_data
                     )
-                    if((view_name == "right") and (self.counter == 5)): # Save every 10th frame
+                    if((view_name == "right") and (self.counter == 3)): # Save every 10th frame
                         self.counter = 0
                         self.QR_img = img
                         self.new_data = 1
