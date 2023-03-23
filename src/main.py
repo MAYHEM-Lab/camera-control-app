@@ -70,6 +70,7 @@ class QR_Control(App):
         self.new_data = 0
         self.counter = 0
         self.QR_img = None
+        self.move = 0
 
     def build(self):
         return Builder.load_file("res/main.kv")
@@ -152,9 +153,11 @@ class QR_Control(App):
                 # print(decodedText, str(decodedText))
                 if(type(decodedText) == str and decodedText is not None):
                     self.root.ids["qr_text"].text = str(decodedText)
+                    self.move = 1
                 self.root.ids["qr"].texture = qr_texture
             else:
                 print("QR code not detected")
+                self.move = 0
             
             self.new_data = 0
                 
@@ -335,8 +338,8 @@ class QR_Control(App):
         while True:
             msg: canbus_pb2.RawCanbusMessage = make_amiga_rpdo1_proto(
                 state_req=AmigaControlState.STATE_AUTO_ACTIVE,
-                cmd_speed=self.max_speed * 0.01,
-                cmd_ang_rate=self.max_angular_rate * 0,
+                cmd_speed=(-self.max_speed * 0.05 * self.move),
+                cmd_ang_rate=0,
             )
             yield canbus_pb2.SendCanbusMessageRequest(message=msg)
             await asyncio.sleep(period)
