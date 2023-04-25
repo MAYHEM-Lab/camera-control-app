@@ -17,8 +17,11 @@ from farm_ng.oak.camera_client import OakCameraClient
 from farm_ng.service import service_pb2
 from farm_ng.service.service_client import ClientConfig
 from turbojpeg import TurboJPEG
+
 from PIL import Image 
 import cv2
+import socket
+import threading
 
 # import internal libs
 
@@ -42,11 +45,13 @@ from kivy.graphics.texture import Texture  # noqa: E402
 from kivy.properties import StringProperty  # noqa: E402
 
 
+
 class QR_Control(App):
     """Base class for the main Kivy app."""
     amiga_state = StringProperty("???")
     amiga_speed = StringProperty("???")
     amiga_rate = StringProperty("???")
+    pi_request = StringProperty("???")
 
     def __init__(self, address: str, camera_port: int, canbus_port: int, stream_every_n: int) -> None:
         super().__init__()
@@ -68,15 +73,38 @@ class QR_Control(App):
 
         self.qr_model = cv2.QRCodeDetector()
         self.new_data = 0
-        self.counter = 0
+        self.speed = 0.4
         self.QR_img = None
-        self.move = 0
+        self.move = 0 
+
+        #ip and port of servr  
+        #by default http server port is 80  
+        self.server_address = ('0.0.0.0', 9000) 
+        self.out_socks = [] 
+        self.possible_conn = 1
+
+        # # create a socket object, SOCK_STREAM specifies a TCP socket
+        # self.in_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # # allow reusing socket in TIME-WAIT state
+        # # socket will remain open for a small period of time after shutdown to finish transmission
+        # # which will say "socket already in use" if trying to use socket again during TIME-WAIT
+        # # when REUSEADDR is not set
+        # self.in_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # # bind socket to address
+        # self.in_sock.bind(self.server_address)
+        # # start listening for connections to the address
+        # self.in_sock.listen()
+        # self.server_port =
+
 
     def build(self):
         return Builder.load_file("res/main.kv")
 
     def on_exit_btn(self) -> None:
         """Kills the running kivy application."""
+        self.in_sock.close()
+        for sock in self.out_socks:
+            sock[0].close()
         App.get_running_app().stop()
 
     async def app_func(self):
@@ -109,23 +137,50 @@ class QR_Control(App):
             asyncio.ensure_future(self.send_can_msgs(canbus_client))
         )
 
-        # QR Detection Task
-        # self.tasks.append(asyncio.ensure_future(self.detect_QR()))
+        # Server Task
+        # threading.Thread(target=self.pi_server).start()
+        self.tasks.append(asyncio.ensure_future(self.pi_server()))
 
         return await asyncio.gather(run_wrapper(), *self.tasks)
+    
+    async def handle_client(self, reader, writer):
+        request = None
+        while request != 'quit':
+            request = (await reader.read(255)).decode('utf8')
+            response = str(request)
+            self.pi_request = response
+            if(str(request) == "move"):
+                self.move = 1
+                await asyncio.sleep(0.1)
+                self.move = 0
+            elif(str(request).startswith("L")):
+                duration = float(response.split(" ")[1])
+                self.move = 1
+                await asyncio.sleep(duration)
+                self.move = 0
+            writer.write(response.encode('utf8'))
+            await writer.drain()
+        writer.close()
 
-    async def classify(self):
-        return self.qr_model.detectAndDecode(self.QR_img)
+    async def pi_server(self):
+        self.server = await asyncio.start_server(self.handle_client, self.server_address[0], self.server_address[1], reuse_address=True)
 
-    async def detect_QR(self) -> None:
+    async def classify(self, image):
+        while self.root is None:
+            await asyncio.sleep(0.01)
+
+        return self.qr_model.detectAndDecode(image)
+
+    async def detect_QR(self, image) -> None:
 
         while self.root is None:
             await asyncio.sleep(0.01)
 
         # print("Help me")
-        if(self.new_data and (self.QR_img is not None)):
+        # self.move = 0
+        if(self.new_data and (image is not None)):
 
-            decodedText, points, qr =  await self.classify() 
+            decodedText, points, qr =  await self.classify(image) 
 
             # print(points)
             # Make the points array an array of ints (.astype(int)) to draw lines
@@ -134,31 +189,31 @@ class QR_Control(App):
                 points = points[0].astype(int)
                 # print(points)
                 nrOfPoints = len(points) # Is actually of shape [[[][][][]]] so use points[0] as actual array of points
-            
                 for i in range(nrOfPoints):
                     nextPointIndex = (i+1) % nrOfPoints
-                    cv2.line(self.QR_img, tuple(points[i]), tuple(points[nextPointIndex]), (255,0,0), 5)      
+                    cv2.line(image, tuple(points[i]), tuple(points[nextPointIndex]), (255,0,0), 5)      
 
-                qr_texture = Texture.create(
-                size=(self.QR_img.shape[1], self.QR_img.shape[0]), icolorfmt="bgr"
-                )
+                # qr_texture = Texture.create(
+                # size=(image.shape[1], image.shape[0]), icolorfmt="rgb"
+                # )
             
-                qr_texture.flip_vertical()
-                qr_texture.blit_buffer(
-                    self.QR_img.tobytes(),
-                    colorfmt="bgr",
-                    bufferfmt="ubyte",
-                    mipmap_generation=False,
-                )
+                # qr_texture.flip_vertical()
+                # qr_texture.blit_buffer(
+                #     image.tobytes(),
+                #     colorfmt="rgb",
+                #     bufferfmt="ubyte",
+                #     mipmap_generation=False,
+                # )
                 # print(decodedText, str(decodedText))
                 if(type(decodedText) == str and decodedText is not None):
                     self.root.ids["qr_text"].text = str(decodedText)
-                    self.move = 1
-                self.root.ids["qr"].texture = qr_texture
+                    # if (nrOfPoints >= 4):
+                        # self.move = 0
+                # self.root.ids["qr"].texture = qr_texture
+
             else:
                 print("QR code not detected")
-                self.move = 0
-            
+                pass
             self.new_data = 0
                 
     async def stream_canbus(self, client: CanbusClient) -> None:
@@ -257,40 +312,35 @@ class QR_Control(App):
             frame: oak_pb2.OakSyncFrame = response.frame
 
             # get image and show
-            for view_name in ["rgb", "disparity", "left", "right"]:
-                # Skip if view_name was not included in frame
+            for view_name in ["right"]:
+            #     # Skip if view_name was not included in frame
                 try:
-                    # print(view_name, "Added frame")
-                    # Decode the image and render it in the correct kivy texture
+            #         # print(view_name, "Added frame")
+            #         # Decode the image and render it in the correct kivy texture
                     img = self.image_decoder.decode(
                         getattr(frame, view_name).image_data
                     )
-                    if((view_name == "right") and (self.counter == 3)): # Save every 10th frame
-                        self.counter = 0
-                        self.QR_img = img
-                        self.new_data = 1
-                        # print("New QR Data")
-                        await self.detect_QR()
-                        # print("Processed or awaited?")
+            #         # if((self.counter == 3)): # Save every 10th frame
+            #         # self.counter = 0
+            #         # self.QR_img = img
+                    self.new_data = 1
+                    await self.detect_QR(img)
 
-                    # IMG 
                     texture = Texture.create(
-                        size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
+                    size=(img.shape[1], img.shape[0]), icolorfmt="rgb"
                     )
-                   
+                
                     texture.flip_vertical()
                     texture.blit_buffer(
                         img.tobytes(),
-                        colorfmt="bgr",
+                        colorfmt="rgb",
                         bufferfmt="ubyte",
                         mipmap_generation=False,
                     )
-                    
-                    self.root.ids[view_name].texture = texture
-
+                    self.root.ids["right"].texture = texture
                 except Exception as e:
                     print(e)
-            self.counter += 1
+            # self.counter += 1
 
     async def send_can_msgs(self, client: CanbusClient) -> None:
         """This task ensures the canbus client sendCanbusMessage method has the pose_generator it will use to send
@@ -331,14 +381,14 @@ class QR_Control(App):
 
     async def pose_generator(self, period: float = 0.02):
         """The pose generator yields an AmigaRpdo1 (auto control command) for the canbus client to send on the bus
-        at the specified period (recommended 50hz) based on the onscreen joystick position."""
+        at the specified period (recommended 50hz)."""
         while self.root is None:
             await asyncio.sleep(0.01)
-
         while True:
+            # print("Message sent", self.move)
             msg: canbus_pb2.RawCanbusMessage = make_amiga_rpdo1_proto(
                 state_req=AmigaControlState.STATE_AUTO_ACTIVE,
-                cmd_speed=(-self.max_speed * 0.05 * self.move),
+                cmd_speed=(self.max_speed * self.speed * self.move ),
                 cmd_ang_rate=0,
             )
             yield canbus_pb2.SendCanbusMessageRequest(message=msg)
