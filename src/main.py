@@ -20,9 +20,11 @@ from turbojpeg import TurboJPEG
 
 from PIL import Image 
 import cv2
+
 import socket
 import threading
-
+import csv
+from datetime import datetime
 # import internal libs
 
 # Must come before kivy imports
@@ -50,6 +52,7 @@ class QR_Control(App):
     """Base class for the main Kivy app."""
     amiga_state = StringProperty("???")
     amiga_speed = StringProperty("???")
+    max_amiga_speed = StringProperty("???")
     amiga_rate = StringProperty("???")
     pi_request = StringProperty("???")
 
@@ -63,49 +66,76 @@ class QR_Control(App):
         
         # Received values
         self.amiga_tpdo1: AmigaTpdo1 = AmigaTpdo1()
-
+        self.amiga_vel = 0
         # Parameters
-        self.max_speed: float = 1.0
+        self.max_speed: float = 0.15
         self.max_angular_rate: float = 1.0
+        self.direction = 1
+        self.speed = self.max_speed
+        self.QR_img = None
+        self.move = 0 
+
+        self.connected = False # BT Connection
+
+        self.current_tag = -1
+        self.recent_tag = None
+
+        self.zero_ticks = 0
+        self.passes = 0
 
         self.image_decoder = TurboJPEG()
         self.tasks: List[asyncio.Task] = []
 
-        self.qr_model = cv2.QRCodeDetector()
-        self.new_data = 0
-        self.speed = 0.4
-        self.QR_img = None
-        self.move = 0 
+        
 
         #ip and port of servr  
         #by default http server port is 80  
         self.server_address = ('0.0.0.0', 9000) 
         self.out_socks = [] 
-        self.possible_conn = 1
+        # self.possible_conn = 1
 
-        # # create a socket object, SOCK_STREAM specifies a TCP socket
-        # self.in_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # # allow reusing socket in TIME-WAIT state
-        # # socket will remain open for a small period of time after shutdown to finish transmission
-        # # which will say "socket already in use" if trying to use socket again during TIME-WAIT
-        # # when REUSEADDR is not set
-        # self.in_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # # bind socket to address
-        # self.in_sock.bind(self.server_address)
-        # # start listening for connections to the address
-        # self.in_sock.listen()
-        # self.server_port =
+        self.log_file = None
+        self.log_writer = None
 
+        # date_stamp = today.strftime("%m_%d_%y")
+        # fname = '../logs/gort_' + date_stamp  + '.csv'
+        # try:
+        #     self.log_file = open(fname, mode='a')
+
+        #     fieldnames = ['time', 'node', 'data']
+        #     self.log_writer = csv.DictWriter(self.log_file, fieldnames=fieldnames)
+        #     if (os.path.getsize(fname) <= 0):
+        #         self.log_writer.writeheader()
+        # except:
+        #     print("Error in creating and opening log")
 
     def build(self):
         return Builder.load_file("res/main.kv")
 
     def on_exit_btn(self) -> None:
         """Kills the running kivy application."""
-        self.in_sock.close()
+        # self.in_sock.close()
         for sock in self.out_socks:
             sock[0].close()
         App.get_running_app().stop()
+    
+    def on_minus_btn(self) -> None:
+        if self.max_speed == 0.04:
+            return
+        else:
+            self.max_speed -= 0.01
+            if self.max_speed < 0.04:
+                self.max_speed = 0.04
+            self.speed = self.max_speed
+    
+    def on_plus_btn(self) -> None:
+        if self.max_speed == 0.25:
+            return
+        else:
+            self.max_speed += 0.01
+            if self.max_speed > 0.15:
+                self.max_speed = 0.15
+            self.speed = self.max_speed
 
     async def app_func(self):
         async def run_wrapper():
@@ -140,81 +170,133 @@ class QR_Control(App):
         # Server Task
         # threading.Thread(target=self.pi_server).start()
         self.tasks.append(asyncio.ensure_future(self.pi_server()))
+        self.tasks.append(asyncio.ensure_future(self.handle_amiga_state()))
+        self.tasks.append(asyncio.ensure_future(self.handle_UI()))
 
         return await asyncio.gather(run_wrapper(), *self.tasks)
+
+    async def handle_amiga_state(self):
+        while self.root is None:
+            await asyncio.sleep(0.01)
+        while True:
+            await asyncio.sleep(10)
+            if self.amiga_state == "AUTO_ACTIVE" and (not self.connected) :
+                self.move = 1
+            else:
+                self.move = 0
     
+    async def handle_UI(self):
+        while self.root is None:
+            await asyncio.sleep(0.01)
+        while True:
+            await asyncio.sleep(2)
+            self.max_amiga_speed = f'{self.max_speed:5.3f}'
+            if self.connected:
+                self.root.ids["bt_conn"].source = "assets/BT_LOGO.png"
+                self.root.ids["laser"].source = "assets/Pan_Green_Circle.png"   
+                
+            else:
+                self.root.ids["laser"].source = "assets/red_circle_2.png"
+                self.root.ids["bt_conn"].source = "assets/TRANS_BC_DOWN.png"
+                self.root.ids["node_1"].source = "assets/red_circle_2.png"
+                self.root.ids["node_2"].source = "assets/red_circle_2.png"
+                if self.move:
+                    self.root.ids["transition"].source = "assets/DOUBLE_ARROW_GREEN.png"
+                else:
+                    self.root.ids["transition"].source = "assets/DOUBLE_ARROW2.png"
+                    if(self.current_tag != -1):
+                        if (self.current_tag != self.recent_tag): # We are at our target
+                            if self.current_tag == 1 :
+                                self.root.ids["node_2"].source = "assets/Pan_Green_Circle.png"
+                                self.root.ids["node_1"].source = "assets/red_circle_2.png"
+                            elif self.current_tag == 0:
+                                self.root.ids["node_2"].source = "assets/red_circle_2.png"
+                                self.root.ids["node_1"].source = "assets/Pan_Green_Circle.png"
+
     async def handle_client(self, reader, writer):
         request = None
         while request != 'quit':
             request = (await reader.read(255)).decode('utf8')
-            response = str(request)
-            self.pi_request = response
-            if(str(request) == "move"):
-                self.move = 1
-                await asyncio.sleep(0.1)
-                self.move = 0
-            elif(str(request).startswith("L")):
-                duration = float(response.split(" ")[1])
-                self.move = 1
-                await asyncio.sleep(duration)
-                self.move = 0
-            writer.write(response.encode('utf8'))
+            request = str(request)            
+            if request is not None:
+                self.pi_request = request
+                if request.startswith('Z'):
+                    if len(request.split(" ")) == 3:
+                        
+                        zone, proximity, tag = (request.split(" "))
+                        self.current_tag = int(tag)
+                        if self.current_tag != self.recent_tag:
+                            self.speed = 0.04
+                            self.direction = -1 if int(zone.count('+')) else 1
+                            if zone[-1] == '0' or (self.passes == 6):
+                                self.zero_ticks += 1
+                                self.move = 0
+                                if self.passes < 6:
+                                    self.passes += 1
+                                await asyncio.sleep(0.01)
+                                # print("Here")
+                                if (not self.connected) and (self.zero_ticks == 100) and (self.amiga_tpdo1.meas_speed < 0.025):
+                                    # if self.current_tag != 1:
+                                    reply = f"Connect {self.current_tag}"
+                                    self.recent_tag = self.current_tag
+                                    writer.write(reply.encode('utf8'))
+                                    self.connected = True
+
+                            else:
+                                self.zero_ticks = 0
+                                self.move = 1
+
+                                await asyncio.sleep(0.01)
+                elif request.startswith("DONE"):
+                    self.connected = False
+                    reply = f"Disconnect {self.current_tag}"
+                    self.direction = -1 if (self.current_tag) else 1
+                    self.current_tag = None
+
+                    # self.log_writer.close()
+                    self.log_file.close()
+                    self.log_file = None
+                    self.log_writer = None
+
+                    writer.write(reply.encode('utf8'))
+                    self.move = 1
+                    self.speed = self.max_speed
+                    self.passes = 0
+                    # await asyncio.sleep(0.5)
+                    # self.move = 0
+                elif request.startswith("FILE"): # Save Data here into a CSV
+                    # print(request)
+                    stamp = str(datetime.now()).split(' ')
+                    date_stamp = stamp[0] + '_' + stamp[1]
+                    fname = '/data/home/amiga/logs/gort_' + date_stamp + '_node' + str(self.current_tag)  + '.csv'
+                    try:
+                        self.log_file = open(fname, mode='a')
+
+                        fieldnames = ['time', 'data']
+                        self.log_writer = csv.DictWriter(self.log_file, fieldnames=fieldnames)
+                        if (os.path.getsize(fname) <= 0):
+                            self.log_writer.writeheader()
+                    except Exception as e:
+                        print("Error in creating and opening log", e)
+                else:
+                    try:
+                        data = request.split(';')
+                        message_data = ""
+                        for i in range(len(data[1:])):
+                            message_data += str(data[i+1]).strip()
+                            if (i+1 != (len(data[1:]))):
+                                message_data += ";"
+                        new_row = {"time": data[0], "data": message_data}
+                        self.log_writer.writerow(new_row)
+                    except Exception as e:
+                        print("Error in writing to log", e)
+            
             await writer.drain()
         writer.close()
 
     async def pi_server(self):
         self.server = await asyncio.start_server(self.handle_client, self.server_address[0], self.server_address[1], reuse_address=True)
 
-    async def classify(self, image):
-        while self.root is None:
-            await asyncio.sleep(0.01)
-
-        return self.qr_model.detectAndDecode(image)
-
-    async def detect_QR(self, image) -> None:
-
-        while self.root is None:
-            await asyncio.sleep(0.01)
-
-        # print("Help me")
-        # self.move = 0
-        if(self.new_data and (image is not None)):
-
-            decodedText, points, qr =  await self.classify(image) 
-
-            # print(points)
-            # Make the points array an array of ints (.astype(int)) to draw lines
-            if points is not None:
-
-                points = points[0].astype(int)
-                # print(points)
-                nrOfPoints = len(points) # Is actually of shape [[[][][][]]] so use points[0] as actual array of points
-                for i in range(nrOfPoints):
-                    nextPointIndex = (i+1) % nrOfPoints
-                    cv2.line(image, tuple(points[i]), tuple(points[nextPointIndex]), (255,0,0), 5)      
-
-                # qr_texture = Texture.create(
-                # size=(image.shape[1], image.shape[0]), icolorfmt="rgb"
-                # )
-            
-                # qr_texture.flip_vertical()
-                # qr_texture.blit_buffer(
-                #     image.tobytes(),
-                #     colorfmt="rgb",
-                #     bufferfmt="ubyte",
-                #     mipmap_generation=False,
-                # )
-                # print(decodedText, str(decodedText))
-                if(type(decodedText) == str and decodedText is not None):
-                    self.root.ids["qr_text"].text = str(decodedText)
-                    # if (nrOfPoints >= 4):
-                        # self.move = 0
-                # self.root.ids["qr"].texture = qr_texture
-
-            else:
-                print("QR code not detected")
-                pass
-            self.new_data = 0
                 
     async def stream_canbus(self, client: CanbusClient) -> None:
         """This task:
@@ -312,7 +394,7 @@ class QR_Control(App):
             frame: oak_pb2.OakSyncFrame = response.frame
 
             # get image and show
-            for view_name in ["right"]:
+            for view_name in ["rgb"]:
             #     # Skip if view_name was not included in frame
                 try:
             #         # print(view_name, "Added frame")
@@ -320,20 +402,15 @@ class QR_Control(App):
                     img = self.image_decoder.decode(
                         getattr(frame, view_name).image_data
                     )
-            #         # if((self.counter == 3)): # Save every 10th frame
-            #         # self.counter = 0
-            #         # self.QR_img = img
-                    self.new_data = 1
-                    await self.detect_QR(img)
 
                     texture = Texture.create(
-                    size=(img.shape[1], img.shape[0]), icolorfmt="rgb"
+                    size=(img.shape[1], img.shape[0]), icolorfmt="bgr"
                     )
                 
                     texture.flip_vertical()
                     texture.blit_buffer(
                         img.tobytes(),
-                        colorfmt="rgb",
+                        colorfmt="bgr",
                         bufferfmt="ubyte",
                         mipmap_generation=False,
                     )
@@ -388,7 +465,7 @@ class QR_Control(App):
             # print("Message sent", self.move)
             msg: canbus_pb2.RawCanbusMessage = make_amiga_rpdo1_proto(
                 state_req=AmigaControlState.STATE_AUTO_ACTIVE,
-                cmd_speed=(self.max_speed * self.speed * self.move ),
+                cmd_speed=(self.speed * self.move * self.direction),
                 cmd_ang_rate=0,
             )
             yield canbus_pb2.SendCanbusMessageRequest(message=msg)
@@ -413,6 +490,8 @@ if __name__ == "__main__":
         help="The grpc port where the canbus service is running.",
     )
     args = parser.parse_args()
+
+    # Open data file for this run
 
     loop = asyncio.get_event_loop()
     try:

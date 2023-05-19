@@ -17,9 +17,41 @@ RelativeLayout:
             orientation: 'vertical'
             Widget:
                 size_hint_y: 2.0
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_y: 3.0
+                Label:
+                    text: "Max Speed [m/s]:"
+                    font_size: 18
+                Label:
+                    text: app.max_amiga_speed
+                    font_size: 18
+                BoxLayout:
+                    orientation: 'horizontal'
+                    Button:
+                        id: minus_speed
+                        # size_hint_y: 0.5
+                        # background_normal: "assets/plus.png"
+                        text: "-"
+                        on_release: app.on_minus_btn()
+                        # Image:
+                        #     # source: "assets/back_button_normal.png" if self.parent.state == "normal" else "assets/back_button_down.png"
+                        #     pos: self.parent.pos
+                        #     size: self.parent.size
+                    Button:
+                        id: plus_speed
+                        # size_hint_y: 0.5
+                        # background_normal: "assets/minus.png"
+                        text: "+"
+                        on_release: app.on_plus_btn()
+                        # Image:
+                        #     # source: "assets/back_button_normal.png" if self.parent.state == "normal" else "assets/back_button_down.png"
+                        #     pos: self.parent.pos
+                        #     size: self.parent.size
+            Widget:            
             Label:
                 text: "Amiga State:"
-                font_size: 18
+                font_isize: 18
                 size_hint_y: 0.5
             Label:
                 text: app.amiga_state
@@ -43,13 +75,66 @@ RelativeLayout:
             Widget:
                 size_hint_y: 2.0
         BoxLayout:
+            size_hint_x: 0.8
             orientation: 'horizontal'
             BoxLayout:
                 orientation: 'vertical'
-                Label:
-                    size_hint_y: 0.5
-                    text: app.pi_request
+                BoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: 0.2
+                    BoxLayout:
+                        orientation: 'vertical'
+                        Label:
+                            size_hint_y: 0.4
+                            text: "Current Station:" 
+                        BoxLayout:
+                            orientation: 'horizontal'
+                            Image:
+                                id: node_1
+                                size_hint_y: None
+                                size: (100, 100)
+                                # source: "assets/Pan_Green_Circle.png"
+                            Image:
+                                id: transition
+                                size_hint_y: None
+                                size: (100, 100)
+                                # source: "assets/DOUBLE_ARROW2.png"
+                            Image:
+                                id: node_2
+                                size_hint_y: None
+                                size: (100, 100)
+                                # source: "assets/red_circle_2.png"
+                    BoxLayout:
+                        orientation: 'vertical'
+                        Label:
+                        
+                            size_hint_y: 0.4
+                            text: "Laser Status:" 
+                        Image:
+                            id: laser
+                            size_hint_y: None
+                            size: (100, 100)
+                            # source: "assets/red_circle_2.png"
+                    BoxLayout:
+                        orientation: 'vertical'
+                        Label:
+                            size_hint_y: 0.4
+                            text: "Bluetooth Connection:" 
+                        Image:
+                            id: bt_conn
+                            size_hint_y: None
+                            size: (100, 100)
+                            # source: "assets/TRANS_BC_DOWN.png"
+                BoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: 0.2
+                    Label:
+                        size_hint_X: 0.2
+                        text: "Onboard Pi Messages:"
+                    Label:
+                        size_hint_X: 0.8
+                        text: app.pi_request
                 Image:
-                    size_hint_y: 2.0
+                    size_hint_y: 0.6
                     id: right    
     
